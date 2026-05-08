@@ -61,6 +61,13 @@ class YoutubeBridge extends BridgeAbstract
                 'type' => 'number',
                 'title' => 'Maximum duration for the video in minutes',
                 'exampleValue' => 10
+            ],
+            'skip_members_only' => [
+                'name' => 'Skip members-only videos',
+                'type' => 'checkbox',
+                'required' => false,
+                'defaultValue' => false,
+                'title' => 'Hide videos that require a channel membership to watch'
             ]
         ]
     ];
@@ -444,7 +451,7 @@ class YoutubeBridge extends BridgeAbstract
             } elseif (isset($item->richItemRenderer->content->videoRenderer)) {
                 $wrapper = $item->richItemRenderer->content->videoRenderer;
             } elseif (isset($item->richItemRenderer->content->lockupViewModel)) {
-                // Newer YouTube layout: richItemRenderer can wrap a lockupViewModel rather than a videoRenderer.
+                // 2026 layout: richItemRenderer wraps a lockupViewModel rather than a videoRenderer.
                 $wrapper = $this->wrapLockupViewModel($item->richItemRenderer->content->lockupViewModel);
                 if ($wrapper === null) {
                     continue;
@@ -515,6 +522,17 @@ class YoutubeBridge extends BridgeAbstract
         $title = $lockup->metadata->lockupMetadataViewModel->title->content ?? null;
         if (!$videoId || !$title) {
             return null;
+        }
+
+        if ($this->getInput('skip_members_only')) {
+            $rows = $lockup->metadata->lockupMetadataViewModel->metadata->contentMetadataViewModel->metadataRows ?? [];
+            foreach ($rows as $row) {
+                foreach ($row->badges ?? [] as $badge) {
+                    if (($badge->badgeViewModel->badgeStyle ?? null) === 'BADGE_MEMBERS_ONLY') {
+                        return null;
+                    }
+                }
+            }
         }
 
         $wrapper = new \stdClass();
